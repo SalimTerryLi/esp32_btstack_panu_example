@@ -1,15 +1,13 @@
 #include <stdio.h>
 #include <inttypes.h>
+#include <esp_netif.h>
+#include <esp_event.h>
 
 #include "btstack_config.h"
 #include "bnep_lwip.h"
 #include "btstack.h"
 
-#include "lwip/init.h"
-#include "lwip/opt.h"
-#include "lwip/tcpip.h"
-#include "lwip/apps/fs.h"
-#include "lwip/dhcp.h"
+#include "esp_eth_phy_btstack_bnep.h"
 
 // network types
 #define NETWORK_TYPE_IPv4       0x0800
@@ -41,6 +39,8 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 static void handle_sdp_client_query_result(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void handle_sdp_client_record_complete(void);
 static void get_string_from_data_element(uint8_t * element, uint16_t buffer_size, char * buffer_data);
+
+static void network_init();
 
 // PANU client routines helper function
 static void get_string_from_data_element(uint8_t * element, uint16_t buffer_size, char * buffer_data){
@@ -245,6 +245,8 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                         // register callback - to print state
                         //bnep_lwip_register_packet_handler(packet_handler);
 
+                        network_init();
+
                     }
                     break;
                 
@@ -268,6 +270,25 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
         default:
             break;
     }
+}
+
+static void network_init(){
+    ESP_ERROR_CHECK(esp_netif_init());
+    // Create default event loop that running in background
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+    esp_netif_t *eth_netif = esp_netif_new(&cfg);
+    ESP_ERROR_CHECK(esp_eth_set_default_handlers(eth_netif));
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+    esp_eth_phy_t *phy = esp_eth_phy_new_btstack_bnep(&phy_config);
+    esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
+    esp_eth_handle_t eth_handle = NULL;
+    ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
+    ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
+    /* start Ethernet driver state machine */
+    ESP_ERROR_CHECK(esp_eth_start(eth_handle));
 }
 
 int btstack_main(int argc, const char * argv[]){
