@@ -7,6 +7,7 @@
 #include "btstack_config.h"
 #include "bnep_lwip.h"
 #include "btstack.h"
+#include "http_client.h"
 
 #include "esp_nettap.h"
 #include "esp_tapif_defaults.h"
@@ -262,6 +263,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                  */
                 case BNEP_EVENT_CHANNEL_CLOSED:
                     ESP_LOGI(TAG, "BNEP channel closed");
+                    stop_httpc();
                     esp_netif_action_disconnected(bnep_if, NULL, 0, NULL);
                     esp_netif_action_stop(bnep_if, NULL, 0, NULL);
                     break;
@@ -298,6 +300,13 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "Netmask: " IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "Gateway: " IPSTR, IP2STR(&ip_info->gw));
     ESP_LOGI(TAG, "~~~~~~~~~~~");
+
+    esp_netif_dns_info_t dnsinfo={};
+    esp_netif_str_to_ip4("223.5.5.5", &dnsinfo.ip.u_addr.ip4);
+    dnsinfo.ip.type = ESP_IPADDR_TYPE_V4;
+    esp_netif_set_dns_info(bnep_if, ESP_NETIF_DNS_MAIN, &dnsinfo);
+
+    serving_httpc();
 }
 
 static void network_init(){
