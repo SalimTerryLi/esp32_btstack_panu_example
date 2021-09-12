@@ -38,27 +38,50 @@
  *  called from BTstack timers or in response to its callbacks, e.g. packet handlers.
  */
 
-#include "btstack_port_esp32.h"
-#include "btstack_run_loop.h"
-#include "hci_dump.h"
+#include <string.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "simple_btstack.h"
+#include "bt_cod.h"
+#include "sbt_pairing.h"
+#include "sbt_debug.h"
+#include "esp_log.h"
 
-#include <stddef.h>
+static const char* TAG = "APP_MAIN";
 
-extern int btstack_main(int argc, const char * argv[]);
+static sbt_pincode_response_t pincode_request(bd_addr_t addr) {
+    sbt_pincode_response_t ret;
+    strncpy(ret.pin, "0000", 5);
+    return ret;
+}
+
+static void onSSPIncomingReq(bd_addr_t remote_addr, uint32_t pincode){
+    vTaskDelay(pdMS_TO_TICKS(10000));
+    sbt_pairing_comfirm_pincode(remote_addr, true);
+}
+
+static void onSSPFinish(bd_addr_t remote_addr, uint32_t status){
+    ;
+}
 
 int app_main(void){
 
     // optional: enable packet logger
     // hci_dump_open(NULL, HCI_DUMP_STDOUT);
 
-    // Configure BTstack for ESP32 VHCI Controller
-    btstack_init();
-
-    // Setup example
-    btstack_main(0, NULL);
-
-    // Enter run loop (forever)
-    btstack_run_loop_execute();
+    esp_log_level_set("SBT", ESP_LOG_DEBUG);
+    esp_log_level_set("SBT_PAIRING", ESP_LOG_DEBUG);
+    esp_log_level_set("SBT_DEBUG", ESP_LOG_DEBUG);
+    sbt_init("ESP32 00:00:00:00:00:00", BT_COD_GEN(BT_COD_MAJOR_SERV_NETWORKING, BT_COD_MAJOR_DEV_COMPUTER, BT_COD_MAJOR_DEV_COMPUTER_MINOR_DEV_WEARABLE));
+    ESP_LOGI(TAG, "BT init");
+    sbt_set_discoverable(true);
+    sbt_set_connectable(true);
+    ESP_LOGI(TAG, "BT can be discovered and connected");
+    sbt_pairing_pincode_request_register_callback(pincode_request);
+    //sbt_debugging_init();
+    sbt_pairing_enable_ssp(SBT_SSP_IO_CAP_DISPLAY_YES_NO, SBT_TRUST_MODEL_ASK_EVERYTIME, onSSPIncomingReq, onSSPFinish);
+    sbt_start();
+    ESP_LOGI(TAG, "BT running");
 
     return 0;
 }
