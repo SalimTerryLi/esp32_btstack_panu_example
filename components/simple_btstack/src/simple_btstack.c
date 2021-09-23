@@ -94,6 +94,8 @@ static void run_btstack_main_task(void* arg){
     hci_add_event_handler(&hci_event_callback_registration);
     l2cap_init();
 
+    sdp_init();
+
     ESP_LOGD(TAG, "BTStack init finished");
     // init finished, notify parent task
     xTaskNotifyGive(sbt_task_handler);
