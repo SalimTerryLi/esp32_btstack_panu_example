@@ -61,7 +61,8 @@ static void onSSPIncomingReq(bd_addr_t remote_addr, uint32_t pincode){
 }
 
 static void onSSPFinish(bd_addr_t remote_addr, uint32_t status){
-    ;
+    ESP_LOGI(TAG, "Pairing returned 0x%.8x from %.2x:%.2x:%.2x:%.2x:%.2x:%.2x", status,
+             remote_addr[0], remote_addr[1], remote_addr[2], remote_addr[3], remote_addr[4], remote_addr[5]);
 }
 
 int app_main(void){

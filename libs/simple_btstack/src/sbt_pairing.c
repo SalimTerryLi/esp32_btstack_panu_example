@@ -123,7 +123,7 @@ static uint16_t packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *
                     }
                     sbt_incomming_pairing_data_t *pairing_data = find_session(event_addr, SBT_SSP_TAG_CONFIRMATION_REQUEST);
                     if (pairing_data != NULL){
-                        xTaskGenericNotify(pairing_data->task, pairing_result, eSetValueWithOverwrite, NULL);
+                        xTaskGenericNotify(pairing_data->task, 0, pairing_result, eSetValueWithOverwrite, NULL);
                     }
                     break;
 
