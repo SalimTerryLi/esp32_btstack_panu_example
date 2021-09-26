@@ -13,8 +13,6 @@ static uint16_t packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *
     UNUSED(channel);
     UNUSED(size);
 
-    bd_addr_t event_addr;
-
     switch (packet_type) {
         case HCI_EVENT_PACKET:
             ESP_LOGD(TAG, "HCI_EVENT_PACKET:");
