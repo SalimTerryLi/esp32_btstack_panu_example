@@ -189,59 +189,43 @@ esp_err_t sbt_pairing_enable_ssp(sbt_ssp_io_capability_t io_cap, sbt_ssp_trust_m
 typedef struct {
     bd_addr_t mac;
     bool accept;
-    StaticSemaphore_t binSemaphore;
-    SemaphoreHandle_t binSemaphoreHandler;
 } confirm_pincode_argv;
 
-static void execute_on_btstack_confirm_pincode(void *data) {
+static esp_err_t execute_on_btstack_confirm_pincode(void *data) {
     confirm_pincode_argv *argv = (confirm_pincode_argv*) data;
     if (argv->accept) {
         gap_ssp_confirmation_response(argv->mac);
     }else {
         gap_ssp_confirmation_negative(argv->mac);
     }
-    xSemaphoreGive(argv->binSemaphoreHandler);
+    return ESP_OK;
 }
 
 esp_err_t sbt_pairing_comfirm_pincode(bd_addr_t mac, bool accept) {
     confirm_pincode_argv argv;
     memcpy(argv.mac, mac, 6);
     argv.accept = accept;
-    argv.binSemaphoreHandler = xSemaphoreCreateBinaryStatic(&argv.binSemaphore);
-    btstack_context_callback_registration_t cb_reg;
-    cb_reg.callback = &execute_on_btstack_confirm_pincode;
-    cb_reg.context = (void*) &argv;
-    btstack_run_loop_execute_on_main_thread(&cb_reg);
-    xSemaphoreTake(argv.binSemaphoreHandler, portMAX_DELAY);
-    return ESP_OK;
+    return exec_on_btstack(execute_on_btstack_confirm_pincode, &argv);
 }
 
 typedef struct {
     bd_addr_t mac;
     uint32_t pincode;
-    StaticSemaphore_t binSemaphore;
-    SemaphoreHandle_t binSemaphoreHandler;
 } provide_pincode_argv;
 
-static void execute_on_btstack_provide_pincode(void *data) {
+static esp_err_t execute_on_btstack_provide_pincode(void *data) {
     provide_pincode_argv *argv = (provide_pincode_argv*) data;
     if (argv->pincode > 999999) {
         gap_ssp_passkey_negative(argv->mac);
     }else {
         gap_ssp_passkey_response(argv->mac, argv->pincode);
     }
-    xSemaphoreGive(argv->binSemaphoreHandler);
+    return ESP_OK;
 }
 
 esp_err_t sbt_pairing_provide_pincode(bd_addr_t mac, uint32_t pincode){
     provide_pincode_argv argv;
     memcpy(argv.mac, mac, 6);
     argv.pincode = pincode;
-    argv.binSemaphoreHandler = xSemaphoreCreateBinaryStatic(&argv.binSemaphore);
-    btstack_context_callback_registration_t cb_reg;
-    cb_reg.callback = &execute_on_btstack_provide_pincode;
-    cb_reg.context = (void*) &argv;
-    btstack_run_loop_execute_on_main_thread(&cb_reg);
-    xSemaphoreTake(argv.binSemaphoreHandler, portMAX_DELAY);
-    return ESP_OK;
+    return exec_on_btstack(execute_on_btstack_provide_pincode, &argv);
 }

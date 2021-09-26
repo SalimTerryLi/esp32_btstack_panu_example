@@ -22,26 +22,24 @@ typedef struct {
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 
 /*
- * Binary semaphore for init stage
+ * Binary semaphore for init stage notification (SBT -> BTStack)
  */
-static StaticSemaphore_t binSemaphoreBTStackInit;
-static SemaphoreHandle_t binSemaphoreHandlerBTStackInit = NULL;
-static sbt_conf_t init_conf = {};
+static StaticSemaphore_t bin_sem_buffer_notify_init_func;
+SemaphoreHandle_t bin_sem_notify_init_func = NULL;
 /*
- * serves init stage to make sure this function pointer is called from BTStack task
- * if is NULL then init stage is finished, or the function get called
+ * Binary semaphore for init stage notification (BTStack -> SBT)
  */
-static void (*nextTaskEntrance)(void *) = NULL;
-static void *nextTaskEntranceContext = NULL;
+static StaticSemaphore_t bin_sem_buffer_notify_init_ret;
+SemaphoreHandle_t bin_sem_notify_init_ret = NULL;
 
-bool isBTStackMainLoopRunning = false;
+static sbt_conf_t init_stage_context = {};
 
 /*
- * Binary semaphore for HCI_EVENT_CHANGE and HCI statue
+ * Binary semaphore for HCI_EVENT_CHANGE and HCI statue notification
  */
-static StaticSemaphore_t binSemaphore_hci_event_change;
-static SemaphoreHandle_t binSemaphoreHandler_hci_event_change = NULL;
-static HCI_STATE currentHCIState = HCI_STATE_OFF;
+static StaticSemaphore_t bin_sem_buffer_notify_hci_state_change;
+static SemaphoreHandle_t bin_sem_notify_hci_state_change = NULL;
+static volatile HCI_STATE currentHCIState = HCI_STATE_OFF;
 
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
     UNUSED(channel);
@@ -55,7 +53,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                 case BTSTACK_EVENT_STATE:
                     ESP_LOGD(TAG, "HCI state changed from %d to %d", currentHCIState, btstack_event_state_get_state(packet));
                     currentHCIState = btstack_event_state_get_state(packet);
-                    xSemaphoreGive(binSemaphoreHandler_hci_event_change);
+                    xSemaphoreGive(bin_sem_notify_hci_state_change);
                     break;
                 default:
                     break;
@@ -79,12 +77,12 @@ static void run_btstack_main_task(void* arg){
     ESP_LOGD(TAG, "BTStack task started");
     if (btstack_init() != 0) {
         ESP_LOGE(TAG, "Failed to init BTStack");
-        init_conf.ret_val = ESP_ERR_INVALID_STATE;
-        xTaskNotifyGive(sbt_task_handler);
+        init_stage_context.ret_val = ESP_ERR_INVALID_STATE;
+        xSemaphoreGive(bin_sem_notify_init_ret);
         goto task_exit;
     }
-    gap_set_local_name(init_conf.name);
-    gap_set_class_of_device(init_conf.cod);
+    gap_set_local_name(init_stage_context.name);
+    gap_set_class_of_device(init_stage_context.cod);
     // by default disable SSP, which is enabled in hci_init()
     gap_ssp_set_enable(0);
     gap_ssp_set_auto_accept(0);
@@ -98,30 +96,33 @@ static void run_btstack_main_task(void* arg){
 
     ESP_LOGD(TAG, "BTStack init finished");
     // init finished, notify parent task
-    xTaskNotifyGive(sbt_task_handler);
+    xSemaphoreGive(bin_sem_notify_init_ret);
     // block for future configuration
     while (true){
-        xSemaphoreTake(binSemaphoreHandlerBTStackInit, portMAX_DELAY);
-        if (nextTaskEntrance == NULL) {
+        xSemaphoreTake(bin_sem_notify_init_func, portMAX_DELAY);
+        if (sbt_init_stage_call_context.fn == NULL) {
             // init finished
             break;
         }
         // else continue init
-        nextTaskEntrance(nextTaskEntranceContext);
+        sbt_init_stage_call_context.ret = sbt_init_stage_call_context.fn(sbt_init_stage_call_context.data);
+        xSemaphoreGive(sbt_init_stage_call_context.sem);
     }
 
     // start HCI
     if (hci_power_control(HCI_POWER_ON) != 0){
-        ESP_LOGE(TAG, "Failed to set HCI power");
-        init_conf.ret_val = ESP_ERR_INVALID_STATE;
-        xTaskNotifyGive(sbt_task_handler);
+        init_stage_context.ret_val = ESP_ERR_INVALID_STATE;
+        xSemaphoreGive(bin_sem_notify_init_ret);
         goto task_exit;
+    } else {
+        init_stage_context.ret_val = ESP_OK;
+        xSemaphoreGive(bin_sem_notify_init_ret);
     }
 
     ESP_LOGD(TAG, "BTStack main loop started");
-    isBTStackMainLoopRunning = true;
+    sbt_state = BTSTACK_RUNNING;
     btstack_run_loop_execute();
-    isBTStackMainLoopRunning = false;
+    sbt_state = BTSTACK_INIT;
 
 task_exit:
     vTaskDelete(btstack_task_handler);
@@ -130,43 +131,54 @@ task_exit:
 }
 
 esp_err_t sbt_init(const char* name, uint32_t class_of_device){
-    static StaticSemaphore_t sbt_packet_handler_mutex_buffer;
-    sbt_packet_handler.mutex_lock = xSemaphoreCreateMutexStatic(&sbt_packet_handler_mutex_buffer);
-    sbt_task_handler = xTaskGetCurrentTaskHandle();
-    binSemaphoreHandlerBTStackInit = xSemaphoreCreateBinaryStatic(&binSemaphoreBTStackInit);
-    binSemaphoreHandler_hci_event_change = xSemaphoreCreateBinaryStatic(&binSemaphore_hci_event_change);
-    init_conf.name = name,
-    init_conf.cod = class_of_device,
+    sbt_packet_handler.mutex_lock = xSemaphoreCreateMutexStatic(&sbt_packet_handler_mutex_lock_static_sem);
+
+    bin_sem_notify_init_func = xSemaphoreCreateBinaryStatic(&bin_sem_buffer_notify_init_func);
+
+    bin_sem_notify_hci_state_change = xSemaphoreCreateBinaryStatic(&bin_sem_buffer_notify_hci_state_change);
+
+    init_stage_context.name = name;
+    init_stage_context.cod = class_of_device;
+
+    bin_sem_notify_init_ret = xSemaphoreCreateBinaryStatic(&bin_sem_buffer_notify_init_ret);
     xTaskCreate(run_btstack_main_task, "btstack_loop", 4096, NULL, uxTaskPriorityGet(xTaskGetCurrentTaskHandle()) + 1, &btstack_task_handler);
     // wait for BTStack init
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    xSemaphoreTake(bin_sem_notify_init_ret, portMAX_DELAY);
+    sbt_state = BTSTACK_INIT;
 
-    return init_conf.ret_val;
+    return init_stage_context.ret_val;
+}
+
+static esp_err_t sbt_set_discoverable_on_btstack(void* data){
+    gap_discoverable_control(*(bool*)data);
+    return ESP_OK;
 }
 
 esp_err_t sbt_set_discoverable(bool val){
-    ENTER_BTSTACK_LOOP();
-    gap_discoverable_control(val);
-    EXIT_BTSTACK_LOOP();
+    return exec_on_btstack(sbt_set_discoverable_on_btstack, &val);
+}
+
+static esp_err_t sbt_set_connectable_on_btstack(void* data) {
+    gap_connectable_control(*(bool*)data);
     return ESP_OK;
 }
 
 esp_err_t sbt_set_connectable(bool val){
-    ENTER_BTSTACK_LOOP();
-    gap_connectable_control(val);
-    EXIT_BTSTACK_LOOP();
-    return ESP_OK;
+    return exec_on_btstack(sbt_set_connectable_on_btstack, &val);
 }
 
 esp_err_t sbt_start(){
     ESP_RETURN_ON_FALSE(btstack_task_handler != NULL, ESP_ERR_INVALID_STATE, TAG, "sbt not initialized");
-    nextTaskEntrance = NULL;
-    nextTaskEntranceContext = NULL;
-    xSemaphoreGive(binSemaphoreHandlerBTStackInit);
+    sbt_init_stage_call_context.fn = NULL;
+    xSemaphoreGive(bin_sem_notify_init_func);
+
+    // wait HCI power set
+    xSemaphoreTake(bin_sem_notify_init_ret, portMAX_DELAY);
+    ESP_RETURN_ON_ERROR(init_stage_context.ret_val, TAG, "Failed to set HCI power");
 
     // wait for HCI is up
     while (currentHCIState != HCI_STATE_WORKING){
-        xSemaphoreTake(binSemaphoreHandler_hci_event_change, portMAX_DELAY);
+        xSemaphoreTake(bin_sem_notify_hci_state_change, portMAX_DELAY);
     }
-    return init_conf.ret_val;
+    return init_stage_context.ret_val;
 }
