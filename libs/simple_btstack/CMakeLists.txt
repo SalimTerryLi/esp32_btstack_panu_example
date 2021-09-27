@@ -2,6 +2,7 @@ set(srcs "src/simple_btstack.c"
          "src/sbt_common.c"
          "src/sbt_debug.c"
          "src/sbt_pairing.c"
+         "src/sbt_sdp.c"
          "src/sbt_bnep.c"
          "src/utils/session.c"
 )

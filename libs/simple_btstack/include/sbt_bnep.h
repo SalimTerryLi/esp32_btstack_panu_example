@@ -37,6 +37,17 @@ esp_err_t sbt_bnep_panu_client_connect();
  */
 esp_err_t sbt_bnep_panu_client_disconnect();
 
+/*
+ * Get called when remote disconnected.
+ * codes are executed in BTStack thread so do not block
+ */
+typedef void (*sbt_bnep_panu_client_disconnected_callback)();
+
+/*
+ * register callback for remote disconnect event.
+ */
+esp_err_t sbt_bnep_panu_client_register_disconnect_callback(sbt_bnep_panu_client_disconnected_callback cb);
+
 #ifdef __cplusplus
 }
 #endif

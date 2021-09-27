@@ -39,8 +39,10 @@
  */
 
 #include <string.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "sbt_sdp.h"
+#include "btstack_util.h"
 #include "simple_btstack.h"
 #include "bt_cod.h"
 #include "sbt_pairing.h"
@@ -72,7 +74,7 @@ int app_main(void){
 
     esp_log_level_set("SBT", ESP_LOG_DEBUG);
     esp_log_level_set("SBT_PAIRING", ESP_LOG_DEBUG);
-    esp_log_level_set("SBT_DEBUG", ESP_LOG_DEBUG);
+    esp_log_level_set("SBT_SDP", ESP_LOG_DEBUG);
     sbt_init("ESP32 00:00:00:00:00:00", BT_COD_GEN(BT_COD_MAJOR_SERV_NETWORKING, BT_COD_MAJOR_DEV_COMPUTER, BT_COD_MAJOR_DEV_COMPUTER_MINOR_DEV_WEARABLE));
     ESP_LOGI(TAG, "BT init");
     sbt_set_discoverable(true);
@@ -83,6 +85,21 @@ int app_main(void){
     sbt_pairing_enable_ssp(SBT_SSP_IO_CAP_DISPLAY_YES_NO, SBT_TRUST_MODEL_ASK_EVERYTIME, onSSPIncomingReq, onSSPFinish);
     sbt_start();
     ESP_LOGI(TAG, "BT running");
+
+    vTaskDelay(pdMS_TO_TICKS(3000));
+
+    ESP_LOGI(TAG, "SDP query");
+
+    query_result_bnep_t query_result;
+    bd_addr_t remote_addr;
+    const char * remote_addr_string = "a4:6b:b6:3f:df:67";
+    // convert string address to library-friendly one
+    sscanf_bd_addr(remote_addr_string, remote_addr);
+    if (sbt_sdp_query_nap(remote_addr, &query_result) != ESP_OK) {
+        ESP_LOGI(TAG, "BNEP NAP not found");
+    } else {
+        ESP_LOGI(TAG, "BNEP NAP found");
+    }
 
     return 0;
 }
