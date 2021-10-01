@@ -47,7 +47,11 @@
 #include "bt_cod.h"
 #include "sbt_pairing.h"
 #include "sbt_debug.h"
+#include "sbt_bnep.h"
 #include "esp_log.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "http_client.h"
 
 static const char* TAG = "APP_MAIN";
 
@@ -58,13 +62,34 @@ static sbt_pincode_response_t pincode_request(bd_addr_t addr) {
 }
 
 static void onSSPIncomingReq(bd_addr_t remote_addr, uint32_t pincode){
-    vTaskDelay(pdMS_TO_TICKS(10000));
+    vTaskDelay(pdMS_TO_TICKS(1000));
     sbt_pairing_comfirm_pincode(remote_addr, true);
 }
 
 static void onSSPFinish(bd_addr_t remote_addr, uint32_t status){
     ESP_LOGI(TAG, "Pairing returned 0x%.8x from %.2x:%.2x:%.2x:%.2x:%.2x:%.2x", status,
              remote_addr[0], remote_addr[1], remote_addr[2], remote_addr[3], remote_addr[4], remote_addr[5]);
+}
+
+static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
+                                 int32_t event_id, void *event_data)
+{
+    ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+    const esp_netif_ip_info_t *ip_info = &event->ip_info;
+
+    ESP_LOGI(TAG, "TAP interface Got IP Address");
+    ESP_LOGI(TAG, "~~~~~~~~~~~");
+    ESP_LOGI(TAG, "IP: " IPSTR, IP2STR(&ip_info->ip));
+    ESP_LOGI(TAG, "Netmask: " IPSTR, IP2STR(&ip_info->netmask));
+    ESP_LOGI(TAG, "Gateway: " IPSTR, IP2STR(&ip_info->gw));
+    ESP_LOGI(TAG, "~~~~~~~~~~~");
+
+    esp_netif_dns_info_t dnsinfo={};
+    esp_netif_str_to_ip4("223.5.5.5", &dnsinfo.ip.u_addr.ip4);
+    dnsinfo.ip.type = ESP_IPADDR_TYPE_V4;
+    esp_netif_set_dns_info(bnep_if, ESP_NETIF_DNS_MAIN, &dnsinfo);
+
+    serving_httpc();
 }
 
 int app_main(void){
@@ -75,6 +100,8 @@ int app_main(void){
     esp_log_level_set("SBT", ESP_LOG_DEBUG);
     esp_log_level_set("SBT_PAIRING", ESP_LOG_DEBUG);
     esp_log_level_set("SBT_SDP", ESP_LOG_DEBUG);
+    esp_log_level_set("SBT_DEBUG", ESP_LOG_DEBUG);
+    esp_log_level_set("SBT_BNEP", ESP_LOG_DEBUG);
     sbt_init("ESP32 00:00:00:00:00:00", BT_COD_GEN(BT_COD_MAJOR_SERV_NETWORKING, BT_COD_MAJOR_DEV_COMPUTER, BT_COD_MAJOR_DEV_COMPUTER_MINOR_DEV_WEARABLE));
     ESP_LOGI(TAG, "BT init");
     sbt_set_discoverable(true);
@@ -98,7 +125,26 @@ int app_main(void){
     if (sbt_sdp_query_nap(remote_addr, &query_result) != ESP_OK) {
         ESP_LOGI(TAG, "BNEP NAP not found");
     } else {
-        ESP_LOGI(TAG, "BNEP NAP found");
+        ESP_LOGI(TAG, "BNEP NAP found: psm %.4x", query_result.sdp_bnep_l2cap_psm);
+        bd_addr_t local_addr;
+        sbt_get_local_mac(local_addr);
+        ESP_LOGI(TAG, "init tapif");
+        sbt_bnep_panu_client_init(local_addr);
+        sbt_bnep_nap_target nap_target = {
+            .uuid_dest = query_result.sdp_bnep_remote_uuid,
+            .l2cap_psm = query_result.sdp_bnep_l2cap_psm,
+        };
+        memcpy(nap_target.remote_addr, remote_addr, 6);
+        esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL);
+        ESP_LOGI(TAG, "connect remote");
+        if (sbt_bnep_panu_client_connect(&nap_target) == ESP_OK) {
+            ESP_LOGI(TAG, "connected");
+            //vTaskDelay(pdMS_TO_TICKS(20000));
+            //sbt_bnep_panu_client_disconnect(remote_addr);
+            //sbt_bnep_panu_client_deinit();
+        }else {
+            ESP_LOGI(TAG, "failed to connect");
+        }
     }
 
     return 0;

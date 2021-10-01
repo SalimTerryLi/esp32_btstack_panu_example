@@ -36,11 +36,12 @@ extern SemaphoreHandle_t bin_sem_notify_init_func;
 
 /* packet handler callbacks, return the count number that event get processed */
 typedef uint16_t(*packet_handler_func_t)(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
-typedef struct sbt_packet_handler_s {
+typedef volatile struct sbt_packet_handler_s {
     union{
         struct named_handlers{
             packet_handler_func_t debug_handle;
             packet_handler_func_t pairing_handle;
+            packet_handler_func_t bnep_handle;
         } by_name;
         packet_handler_func_t handlers[sizeof(struct named_handlers) / sizeof(packet_handler_func_t)];
     };  // critical resource

@@ -64,13 +64,13 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             break;
     }
 
+    xSemaphoreTake(sbt_packet_handler.mutex_lock, portMAX_DELAY);
     for (int i = 0; i < sbt_packet_handler_size; ++i){
-        xSemaphoreTake(sbt_packet_handler.mutex_lock, portMAX_DELAY);
         if (sbt_packet_handler.handlers[i] != NULL){
             sbt_packet_handler.handlers[i](packet_type, channel, packet, size);
         }
-        xSemaphoreGive(sbt_packet_handler.mutex_lock);
     }
+    xSemaphoreGive(sbt_packet_handler.mutex_lock);
 }
 
 static void run_btstack_main_task(void* arg){
@@ -181,4 +181,9 @@ esp_err_t sbt_start(){
         xSemaphoreTake(bin_sem_notify_hci_state_change, portMAX_DELAY);
     }
     return init_stage_context.ret_val;
+}
+
+esp_err_t sbt_get_local_mac(bd_addr_t addr) {
+    gap_local_bd_addr(addr);
+    return ESP_OK;
 }

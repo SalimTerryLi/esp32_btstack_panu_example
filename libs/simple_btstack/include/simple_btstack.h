@@ -24,6 +24,8 @@ esp_err_t sbt_set_discoverable(bool val);
 /* so that device will receive SSP pair requests */
 esp_err_t sbt_set_connectable(bool val);
 
+esp_err_t sbt_get_local_mac(bd_addr_t addr);
+
 /*
  * start BTStack in background and return when HCI is working
  */
