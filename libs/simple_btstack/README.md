@@ -1,5 +1,7 @@
 # Simple BTStack
 
+**SHIT CODE WARNING!**
+
 ## Notes
 
 - [Pairing] PINCODE always enabled, but doesn't provide default routine
