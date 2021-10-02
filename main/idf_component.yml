@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=4.3"
+  esp-tapif:
+    git: https://github.com/SalimTerryLi/esp-tapif

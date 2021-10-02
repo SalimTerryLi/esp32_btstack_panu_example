@@ -9,7 +9,6 @@
 cmake_minimum_required(VERSION 3.5)
 
 set(EXTRA_COMPONENT_DIRS
-        libs/esp-tapif/components/esp-tapif
         libs/btstack
         libs/simple_btstack
         $ENV{IDF_PATH}/examples/common_components/protocol_examples_common

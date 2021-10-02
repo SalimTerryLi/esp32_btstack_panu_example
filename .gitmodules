@@ -1,3 +1,0 @@
-[submodule "libs/esp-tapif"]
-	path = libs/esp-tapif
-	url = https://github.com/SalimTerryLi/esp-tapif.git

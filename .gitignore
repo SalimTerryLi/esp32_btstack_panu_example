@@ -1,3 +1,6 @@
 .idea
 build
-sdkconfig*
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
