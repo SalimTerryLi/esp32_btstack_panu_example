@@ -1,53 +1,27 @@
-# BTStack BNEP tether on ESP-IDF
+# ESP32 Bluetooth BNEP tether on ESP-IDF with BTstack
 
-This is a working example for bluetooth tethering on ESP32. With the UGLY workaround by copying private header out of existing IDF component.
+This example **will only** works on ESP32, thus other chips comes with no Classic BT support.
 
-## Howto
+BNEP profile of Classic BT is capable to bridge link layer connection over Classic BT connection.
 
-**This repo already contains a btstack port provided by [mringwal](https://github.com/bluekitchen/btstack/tree/master/port/esp32)** as component. Compiled and tested on IDF V4.3 and not released V4.4
+It is built on top of my fork of BTstack which brings component-manager support for dependencies management. Also another component named `esp-tapif` is required to support custom link layer implementation. Now ESP-IDF comes with another "l2tap" support but that is not what the tap interface is.
 
-Modify `const char * remote_addr_string = "a4:6b:b6:3f:df:67";` in `bnep-tether.c` to your BT MAC.
+## HOWTO
 
-Build with standard IDF way:
+Make sure your PC/Phone has BNEP configured.
 
+On Linux Mint with blueman installed you can enable Network Access Point (NAP) service within blueman-applet:
+
+![](res/blueman-nap-cfg.png)
+
+On newer Android system (10+) there is option available:
+
+![](res/android-setting.png)
+
+And replace your BT MAC here `const char * remote_addr_string = "a4:6b:b6:3f:df:67";` in `bnep-tether.c`
+
+Then simply:
+
+```sh
+idf.py flash monitor
 ```
-// first init IDF environment with alias `get_idf` or sth else.
-idf.py build flash monitor
-```
-
-Pairing the device from your PC/Phone the first time and trust it. It is named `PANU xx:xx:xx:xx:xx:xx`.
-
-Then reset ESP32 and let it run over again.
-
-Then watch the output:
-
-```
-I (625) bnep_tether: SDP service record size: 169
-I (625) BTDM_INIT: BT controller compile version [1e3e264]
-I (625) system_api: Base MAC address is not set
-I (635) system_api: read default base MAC address from EFUSE
-I (645) phy_init: phy_version 4670,719f9f6,Feb 18 2021,17:07:07
-BTstack up and running at 8C:AA:B5:B5:A8:2A
-I (1255) bnep_tether: Start SDP BNEP query for remote PAN Network Access Point (NAP).
-I (5985) bnep_tether: SDP BNEP Record complete
-I (5985) bnep_tether: SDP Record: Nr: 0
-I (5985) bnep_tether: SDP Attribute 0x0001: BNEP PAN protocol UUID: 1116
-I (5985) bnep_tether: SDP Attribute: 0x0004
-I (5995) bnep_tether: Summary: uuid 0x1116, l2cap_psm 0x000f, bnep_version 0x0100
-I (5995) bnep_tether: SDP Attribute: 0x0100: Network service
-I (6005) bnep_tether: SDP Attribute: 0x0101: Network service
-I (6035) bnep_tether: SDP BNEP Record complete
-I (6035) bnep_tether: General query done with status 0, bnep psm 000f.
-I (6175) bnep_tether: BNEP connection open succeeded to A4:6B:B6:3F:DF:67 source UUID 0x1115 dest UUID: 0x1116, max frame size 1676
-I (10185) bnep_tether: TAP interface Got IP Address
-I (10185) bnep_tether: ~~~~~~~~~~~
-I (10185) bnep_tether: IP: 10.110.209.240
-I (10185) bnep_tether: Netmask: 255.255.255.0
-I (10195) bnep_tether: Gateway: 10.110.209.1
-I (10195) bnep_tether: ~~~~~~~~~~~
-I (10725) esp-x509-crt-bundle: Certificate validated
-I (13485) httpc: HTTPS Status = 200
-I (13485) httpc: HTTP_EVENT_DISCONNECTED
-```
-
-That's all.

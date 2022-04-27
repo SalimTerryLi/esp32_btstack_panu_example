@@ -1,0 +1,10 @@
+# Enable BT
+CONFIG_BT_ENABLED=y
+
+# Disable BT Bluedroid host
+CONFIG_BT_CONTROLLER_ONLY=y
+
+# Bluetooth Dual Stack
+CONFIG_BTDM_CTRL_MODE_BTDM=y
+# Ensure VHCI is enabled
+CONFIG_BTDM_CTRL_HCI_MODE_VHCI=y

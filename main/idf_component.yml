@@ -1,0 +1,6 @@
+dependencies:
+  idf: ">=4.4"
+  btstack:
+    git: https://github.com/SalimTerryLi/btstack
+  esp-tapif:
+    git: https://github.com/SalimTerryLi/esp-tapif
