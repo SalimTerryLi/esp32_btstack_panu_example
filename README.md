@@ -12,11 +12,11 @@ Make sure your PC/Phone has BNEP configured.
 
 On Linux Mint with blueman installed you can enable Network Access Point (NAP) service within blueman-applet:
 
-![](res/blueman-nap-cfg.png)
+![blueman](./res/blueman-nap-cfg.png)
 
 On newer Android system (10+) there is option available:
 
-![](res/android-setting.png)
+![android setting](./res/android-setting.png)
 
 And replace your BT MAC here `const char * remote_addr_string = "a4:6b:b6:3f:df:67";` in `bnep-tether.c`
 
