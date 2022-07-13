@@ -86,7 +86,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 static void httpc_task(void *pvParameters)
 {
     esp_http_client_config_t config = {
-        .url = "https://www.google.com",
+        .url = "https://www.baidu.com/",
         .event_handler = _http_event_handler,
         .crt_bundle_attach = esp_crt_bundle_attach,
         };

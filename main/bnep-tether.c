@@ -317,7 +317,7 @@ static void network_init(){
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_TAP();
     bnep_if = esp_netif_new(&cfg);
 
-    netif_drv = esp_tap_create_if_driver(send_packets);
+    netif_drv = esp_tap_create_if_driver(send_packets, NULL);
 
     bd_addr_t local_addr;
     gap_local_bd_addr(local_addr);
